@@ -1,0 +1,35 @@
+# Запуск: docker compose up -d --build
+services:
+  db:
+    image: postgres:16
+    container_name: shopping-list-db
+    environment:
+      POSTGRES_DB: shopping_list
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-shop123}
+    ports:
+      - "5433:5432"          # 5432 на компьютере занят локальным PostgreSQL
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop -d shopping_list"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./server
+    container_name: shopping-list-api
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/shopping_list
+      DB_USER: shop
+      DB_PASSWORD: ${DB_PASSWORD:-shop123}
+      JWT_SECRET: ${JWT_SECRET:?Задайте JWT_SECRET в файле .env (см. .env.example)}
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
