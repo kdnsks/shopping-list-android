@@ -60,4 +60,10 @@ class SummaryCalculatorTest {
         assertFailsWith<ValidationException> { Validation.item(ItemRequest(name = "Хлеб", quantity = BigDecimal("1.5"), unit = "шт")) }
         Validation.item(ItemRequest(name = "Яблоки", quantity = BigDecimal("1.5"), unit = "кг"))
     }
+
+    @Test
+    fun `слишком длинный пароль отклоняется`() {
+        assertFailsWith<ValidationException> { Validation.password("п".repeat(40)) } // 80 байт в UTF-8
+        Validation.password("password123")
+    }
 }

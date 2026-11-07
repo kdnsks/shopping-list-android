@@ -33,6 +33,7 @@ fun Application.configureSerialization() {
             prettyPrint = true
             ignoreUnknownKeys = true
             explicitNulls = true
+            encodeDefaults = true // иначе поля со значением по умолчанию (tokenType) не попадают в ответ
         })
     }
 }

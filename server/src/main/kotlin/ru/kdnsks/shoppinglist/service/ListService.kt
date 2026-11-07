@@ -4,6 +4,7 @@ import org.jetbrains.exposed.sql.JoinType
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.batchInsert
 import org.jetbrains.exposed.sql.deleteWhere
@@ -22,10 +23,13 @@ import java.time.OffsetDateTime
 
 class ListService {
 
+    /** Все списки пользователя: позиции загружаются одним запросом, а не отдельным запросом на каждый список. */
     suspend fun list(userId: Long): List<ListDto> = dbQuery {
-        ShoppingLists.selectAll().where { ShoppingLists.userId eq userId }
+        val lists = ShoppingLists.selectAll().where { ShoppingLists.userId eq userId }
             .orderBy(ShoppingLists.createdAt to SortOrder.DESC)
-            .map { toDto(it) }
+            .toList()
+        val itemsByList = itemsForSummary(lists.map { it[ShoppingLists.id].value })
+        lists.map { toDto(it, itemsByList[it[ShoppingLists.id].value].orEmpty()) }
     }
 
     suspend fun get(userId: Long, id: Long): ListDto = dbQuery { toDto(findOwned(userId, id)) }
@@ -94,13 +98,14 @@ class ListService {
 
     suspend fun summary(userId: Long, id: Long): SummaryDto = dbQuery {
         val list = findOwned(userId, id)
-        SummaryCalculator.calculate(id, list[ShoppingLists.budget], itemsForSummary(id))
+        SummaryCalculator.calculate(id, list[ShoppingLists.budget], itemsForSummary(listOf(id))[id].orEmpty())
     }
 
-    private fun itemsForSummary(listId: Long): List<ItemForSummary> =
-        ListItems.join(Categories, JoinType.LEFT, ListItems.categoryId, Categories.id)
-            .selectAll().where { ListItems.listId eq listId }
-            .map {
+    private fun itemsForSummary(listIds: List<Long>): Map<Long, List<ItemForSummary>> =
+        if (listIds.isEmpty()) emptyMap()
+        else ListItems.join(Categories, JoinType.LEFT, ListItems.categoryId, Categories.id)
+            .selectAll().where { ListItems.listId inList listIds }
+            .groupBy({ it[ListItems.listId].value }) {
                 ItemForSummary(
                     quantity = it[ListItems.quantity],
                     price = it[ListItems.price],
@@ -111,9 +116,9 @@ class ListService {
                 )
             }
 
-    private fun toDto(r: ResultRow): ListDto {
+    private fun toDto(r: ResultRow, preloaded: List<ItemForSummary>? = null): ListDto {
         val id = r[ShoppingLists.id].value
-        val items = itemsForSummary(id)
+        val items = preloaded ?: itemsForSummary(listOf(id))[id].orEmpty()
         return ListDto(
             id = id,
             name = r[ShoppingLists.name],

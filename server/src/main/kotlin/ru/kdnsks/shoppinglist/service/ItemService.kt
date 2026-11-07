@@ -106,7 +106,7 @@ class ItemService {
         categoryId = r[ListItems.categoryId]?.value,
         categoryName = r.getOrNull(Categories.name) ?: SummaryCalculator.NO_CATEGORY,
         name = r[ListItems.name],
-        quantity = r[ListItems.quantity],
+        quantity = r[ListItems.quantity].stripTrailingZeros(), // «2» вместо «2.000»
         unit = r[ListItems.unit],
         price = r[ListItems.price],
         lineTotal = SummaryCalculator.lineTotal(r[ListItems.price], r[ListItems.quantity]),

@@ -18,6 +18,8 @@ object Validation {
 
     fun password(value: String) {
         if (value.length < 8) throw ValidationException("Пароль должен содержать не менее 8 символов")
+        // BCrypt учитывает только первые 72 байта пароля — более длинные пароли отклоняем явно
+        if (value.toByteArray(Charsets.UTF_8).size > 72) throw ValidationException("Пароль слишком длинный (не более 72 байт)")
     }
 
     fun name(value: String, field: String, max: Int): String {
