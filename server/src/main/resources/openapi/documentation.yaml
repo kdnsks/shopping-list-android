@@ -1,0 +1,246 @@
+openapi: "3.0.3"
+info:
+  title: "Список покупок — API"
+  description: "REST API сервера мобильного приложения «Список покупок» (учебная практика РТУ МИРЭА, вариант № 12). Денежные суммы и количества передаются строкой, например \"89.90\"."
+  version: "0.1.0"
+servers:
+  - url: "http://localhost:8080"
+tags:
+  - name: "Аутентификация"
+  - name: "Категории"
+  - name: "Списки"
+  - name: "Позиции"
+  - name: "Служебное"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string, example: "validation_error" }
+        message: { type: string, example: "Поле «Название» не может быть пустым" }
+    Credentials:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, example: "student@example.com" }
+        password: { type: string, example: "password123" }
+    Token:
+      type: object
+      properties:
+        token: { type: string }
+        tokenType: { type: string, example: "Bearer" }
+        expiresIn: { type: integer, example: 86400 }
+        user: { $ref: "#/components/schemas/User" }
+    User:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        email: { type: string, example: "student@example.com" }
+    CategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, example: "Замороженные продукты" }
+        sortOrder: { type: integer, example: 9 }
+    Category:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        sortOrder: { type: integer }
+    ListRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, example: "Продукты на неделю" }
+        budget: { type: string, nullable: true, example: "3000.00" }
+    List:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        budget: { type: string, nullable: true }
+        itemsCount: { type: integer }
+        total: { type: string, example: "1234.50" }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+    ItemRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, example: "Молоко 3,2%" }
+        quantity: { type: string, example: "2" }
+        unit: { type: string, enum: ["шт", "уп", "кг", "г", "л", "мл"], example: "шт" }
+        price: { type: string, nullable: true, example: "89.90" }
+        categoryId: { type: integer, nullable: true, example: 2 }
+    Item:
+      type: object
+      properties:
+        id: { type: integer }
+        listId: { type: integer }
+        categoryId: { type: integer, nullable: true }
+        categoryName: { type: string }
+        name: { type: string }
+        quantity: { type: string }
+        unit: { type: string }
+        price: { type: string, nullable: true }
+        lineTotal: { type: string, nullable: true }
+        purchased: { type: boolean }
+    Summary:
+      type: object
+      properties:
+        listId: { type: integer }
+        itemsCount: { type: integer }
+        itemsWithoutPrice: { type: integer }
+        total: { type: string }
+        inCart: { type: string }
+        remaining: { type: string }
+        budget: { type: string, nullable: true }
+        budgetRemaining: { type: string, nullable: true }
+        overBudget: { type: boolean }
+        byCategory:
+          type: array
+          items:
+            type: object
+            properties:
+              categoryId: { type: integer, nullable: true }
+              categoryName: { type: string }
+              total: { type: string }
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+    ListId:
+      name: listId
+      in: path
+      required: true
+      schema: { type: integer }
+security:
+  - bearerAuth: []
+paths:
+  /api/health:
+    get:
+      tags: ["Служебное"]
+      summary: "Проверка работы сервера"
+      security: []
+      responses: { "200": { description: "Сервер работает" } }
+  /api/auth/register:
+    post:
+      tags: ["Аутентификация"]
+      summary: "Регистрация пользователя"
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Credentials" } } } }
+      responses:
+        "201": { description: "Пользователь создан, выдан токен", content: { application/json: { schema: { $ref: "#/components/schemas/Token" } } } }
+        "400": { description: "Ошибка проверки данных", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "409": { description: "E-mail уже занят" }
+  /api/auth/login:
+    post:
+      tags: ["Аутентификация"]
+      summary: "Вход в систему"
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Credentials" } } } }
+      responses:
+        "200": { description: "Успешный вход, выдан токен", content: { application/json: { schema: { $ref: "#/components/schemas/Token" } } } }
+        "401": { description: "Неверный e-mail или пароль" }
+  /api/auth/me:
+    get:
+      tags: ["Аутентификация"]
+      summary: "Текущий пользователь"
+      responses:
+        "200": { description: "Данные пользователя", content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+        "401": { description: "Нет или неверный токен" }
+  /api/categories:
+    get:
+      tags: ["Категории"]
+      summary: "Получить категории пользователя"
+      responses: { "200": { description: "Список категорий", content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Category" } } } } } }
+    post:
+      tags: ["Категории"]
+      summary: "Создать категорию"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/CategoryRequest" } } } }
+      responses: { "201": { description: "Категория создана" }, "409": { description: "Категория с таким названием уже есть" } }
+  /api/categories/{id}:
+    parameters: [ { $ref: "#/components/parameters/Id" } ]
+    put:
+      tags: ["Категории"]
+      summary: "Переименовать категорию или изменить порядок"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/CategoryRequest" } } } }
+      responses: { "200": { description: "Категория обновлена" }, "404": { description: "Категория не найдена" } }
+    delete:
+      tags: ["Категории"]
+      summary: "Удалить категорию (товары переходят в «Без категории»)"
+      responses: { "204": { description: "Категория удалена" }, "404": { description: "Категория не найдена" } }
+  /api/lists:
+    get:
+      tags: ["Списки"]
+      summary: "Получить списки пользователя"
+      responses: { "200": { description: "Списки с количеством позиций и суммой", content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/List" } } } } } }
+    post:
+      tags: ["Списки"]
+      summary: "Создать список"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ListRequest" } } } }
+      responses: { "201": { description: "Список создан", content: { application/json: { schema: { $ref: "#/components/schemas/List" } } } } }
+  /api/lists/{id}:
+    parameters: [ { $ref: "#/components/parameters/Id" } ]
+    get:
+      tags: ["Списки"]
+      summary: "Получить список"
+      responses: { "200": { description: "Список" }, "404": { description: "Список не найден" } }
+    put:
+      tags: ["Списки"]
+      summary: "Переименовать список, изменить бюджет"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ListRequest" } } } }
+      responses: { "200": { description: "Список обновлён" }, "404": { description: "Список не найден" } }
+    delete:
+      tags: ["Списки"]
+      summary: "Удалить список вместе с позициями"
+      responses: { "204": { description: "Список удалён" }, "404": { description: "Список не найден" } }
+  /api/lists/{id}/copy:
+    parameters: [ { $ref: "#/components/parameters/Id" } ]
+    post:
+      tags: ["Списки"]
+      summary: "Создать копию списка (отметки «куплено» сбрасываются)"
+      responses: { "201": { description: "Копия создана" } }
+  /api/lists/{id}/summary:
+    parameters: [ { $ref: "#/components/parameters/Id" } ]
+    get:
+      tags: ["Списки"]
+      summary: "Итоги списка: сумма, «в корзине», «осталось», по категориям, бюджет"
+      responses: { "200": { description: "Итоги", content: { application/json: { schema: { $ref: "#/components/schemas/Summary" } } } } }
+  /api/lists/{listId}/items:
+    parameters: [ { $ref: "#/components/parameters/ListId" } ]
+    get:
+      tags: ["Позиции"]
+      summary: "Получить позиции списка (по категориям)"
+      responses: { "200": { description: "Позиции", content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Item" } } } } } }
+    post:
+      tags: ["Позиции"]
+      summary: "Добавить товар в список"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ItemRequest" } } } }
+      responses: { "201": { description: "Позиция добавлена", content: { application/json: { schema: { $ref: "#/components/schemas/Item" } } } }, "400": { description: "Ошибка проверки данных" } }
+  /api/items/{id}:
+    parameters: [ { $ref: "#/components/parameters/Id" } ]
+    put:
+      tags: ["Позиции"]
+      summary: "Изменить позицию"
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ItemRequest" } } } }
+      responses: { "200": { description: "Позиция обновлена" }, "404": { description: "Позиция не найдена" } }
+    delete:
+      tags: ["Позиции"]
+      summary: "Удалить позицию"
+      responses: { "204": { description: "Позиция удалена" } }
+  /api/items/{id}/purchased:
+    parameters: [ { $ref: "#/components/parameters/Id" } ]
+    patch:
+      tags: ["Позиции"]
+      summary: "Отметить позицию купленной или снять отметку"
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { purchased: { type: boolean, example: true } } } } } }
+      responses: { "200": { description: "Отметка изменена" } }
